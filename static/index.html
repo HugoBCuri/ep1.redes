@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title style="text-align: center;">My draw online</title>
+    <style>
+      *, *:before, *:after {
+        box-sizing: inherit;
+      }
+      html {
+        box-sizing: border-box;
+        background: whitesmoke;
+        font-family: sans-serif;
+      }
+      canvas {
+        background: white;
+      }
+
+      #paint-app {
+        margin-left: auto;
+        margin-right: auto;
+        width: 500px;
+      }
+
+      /* For any shape tools that need a live preview */
+      .placeholder {
+        position:absolute;
+        z-index:999;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>my draw online</h1>
+    <div id="paint-app"></div>
+  </body>
+  <script src="client.js"></script>
+</html>

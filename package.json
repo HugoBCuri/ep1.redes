@@ -1,0 +1,17 @@
+{
+  "name": "ep1_redes",
+  "version": "1.0.0",
+  "description": "",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "cuid": "^2.1.6",
+    "websocket": "^1.0.30"
+  }
+}
