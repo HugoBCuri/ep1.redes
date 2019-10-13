@@ -51,7 +51,7 @@ const clients = new Map()
 const sendToAllClientsExceptSender = (message, exceptSenderId) => {
   for (var [key, client] of clients) {
     if (key !== exceptSenderId) {
-      client.sendUTF(message.utf8Data)
+      client.sendUTF(message)
       console.log(message)
       console.log(key)
     }
@@ -66,9 +66,11 @@ wsServer.on('request', (request) => {
   console.log((new Date()) + ' Connection accepted.')
 
   connection.on('message', (message) => {
-    console.log('Received Message: ' + message.utf8Data)
-    sendToAllClientsExceptSender(message, id);
-  })
+    const messageJson = JSON.parse(message.utf8Data)
+    messageJson.userId = id
+    const messageUtf8Data = JSON.stringify(messageJson)
+    console.log('Received Message: ' + messageUtf8Data)
+    sendToAllClientsExceptSender(messageUtf8Data, id)  })
 
   connection.on('close', (reasonCode, description) => {
     console.log((new Date()) + ' Peer ' + connection.remoteAddress + ' disconnected.')
