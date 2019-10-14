@@ -1,4 +1,4 @@
-const ws = new WebSocket('ws://localhost:8080')
+const ws = new WebSocket('ws://10.237.66.2:8080')
 
 function createPaint(parent) {
   var canvas = elt('canvas', { width: 500, height: 300 })
@@ -48,20 +48,6 @@ function trackDrag(onMove, onEnd) {
   }
   addEventListener('mousemove', onMove)
   addEventListener('mouseup', end)
-}
-
-function loadImageURL(cx, url)  {
-  var image = document.createElement('img')
-  image.addEventListener('load', function() {
-    var color = cx.fillStyle, size = cx.lineWidth
-    cx.canvas.width = image.width
-    cx.canvas.height = image.height
-    cx.drawImage(image, 0, 0)
-    cx.fillStyle = color
-    cx.strokeStyle = color
-    cx.lineWidth = size
-  })
-  image.src = url
 }
 
 function randomPointInRadius(radius) {
@@ -118,63 +104,27 @@ controls.brushSize = function(cx) {
   return elt('span', null, 'Brush size: ', select)
 }
 
-controls.save = function(cx) {
-  var link = elt('a', {href: '/', target: '_blank'}, 'Save')
-  function update() {
-    try {
-      link.href = cx.canvas.toDataURL()
-    } catch(e) {
-      if (e instanceof SecurityError)
-        link.href = 'javascript:alert(' +
-          JSON.stringify('Can\'t save: ' + e.toString()) + ')'
-      else
-        window.alert("Nope.")
-        throw e
-    }
-  }
-  link.addEventListener('mouseover', update)
-  link.addEventListener('focus', update)
-  return link
-}
-
-controls.openFile = function(cx) {
-  var input = elt('input', {type: 'file'})
-  input.addEventListener('change', function() {
-    if (input.files.length == 0) return
-    var reader = new FileReader()
-    reader.addEventListener('load', function() {
-      loadImageURL(cx, reader.result)
-    })
-    reader.readAsDataURL(input.files[0])
-  })
-  return elt('div', null, 'Open file: ', input)
-}
-
-controls.openURL = function(cx) {
-  var input = elt('input', {type: 'text'})
-  var form = elt('form', null, 'Open URL: ', input,
-                 elt('button', {type: 'submit'}, 'load'))
-  form.addEventListener('submit', function(event) {
-    event.preventDefault()
-    loadImageURL(cx, form.querySelector('input').value)
-  })
-  return form
-}
-
 var tools = Object.create(null)
 
-tools.Line = function(event, cx, onEnd) {
+tools.Line = function(
+  event,
+  cx,
+  onEnd,
+  strokeStyle = null,
+  globalCompositeOperation = null,
+) {
   cx.lineCap = 'round'
 
   var pos = relativePos(event, cx.canvas)
   trackDrag(function(event) {
     cx.beginPath()
-    console.log(cx.fillStyle)
     cx.moveTo(pos.x, pos.y)
 
     ws.send(JSON.stringify({
       tool: 'Line',
-      strokeStyle: cx.strokeStyle,
+      strokeStyle: strokeStyle ? strokeStyle : cx.strokeStyle,
+      globalCompositeOperation: globalCompositeOperation ? globalCompositeOperation : cx.globalCompositeOperation,
+      lineWidth: cx.lineWidth,
       position: {
         x: pos.x,
         y: pos.y,
@@ -191,40 +141,10 @@ tools.Line = function(event, cx, onEnd) {
 
 tools.Erase = function(event, cx) {
   cx.globalCompositeOperation = 'destination-out'
+
   tools.Line(event, cx, function() {
     cx.globalCompositeOperation = 'source-over'
-  })
-}
-
-tools.Text = function(event, cx) {
-  var text = prompt('Text:', '')
-  if (text) {
-    var pos = relativePos(event, cx.canvas)
-    cx.font = Math.max(7, cx.lineWidth) + 'px sans-serif'
-    cx.fillText(text, pos.x, pos.y)
-  }
-}
-
-tools.Spray = function(event, cx) {
-  var radius = cx.lineWidth / 2
-  var area = radius * radius * Math.PI
-  var dotsPerTick = Math.ceil(area / 30)
-
-  var currentPos = relativePos(event, cx.canvas)
-  var spray = setInterval(function() {
-    for (var i = 0; i < dotsPerTick; i++) {
-      var offset = randomPointInRadius(radius)
-      cx.fillRect(
-        currentPos.x + offset.x,
-        currentPos.y + offset.y, 1, 1
-      )
-    }
-  }, 25)
-  trackDrag(function(event) {
-    currentPos = relativePos(event, cx.canvas)
-  }, function() {
-    clearInterval(spray)
-  })
+  }, 'white', 'destination-out')
 }
 
 tools.Rectangle = function(event, cx) {
@@ -289,79 +209,6 @@ tools.Rectangle = function(event, cx) {
   })
 }
 
-tools['Pick Color'] = function(event, cx) {
-  try {
-    var colorPos = relativePos(event, cx.canvas),
-        imageData = cx.getImageData(colorPos.x, colorPos.y, 1, 1),
-        colorVals = imageData.data,
-        color = ''
-
-    color += 'rgb('
-
-    for (var i = 0; i < colorVals.length - 1; i++) {
-      color += colorVals[i]
-
-      if (i < 2)
-        color += ','
-    }
-    color += ')'
-
-    cx.fillStyle = color
-    cx.strokeStyle = color
-
-  } catch(e) {
-    if (e instanceof SecurityError)
-        alert('Whoops! Looks like you don\'t have permission to do that!')
-      else
-        throw e
-  }
-}
-
-function forEachNeighbor(point, fn) {
-  fn({x: point.x - 1, y: point.y})
-  fn({x: point.x + 1, y: point.y})
-  fn({x: point.x, y: point.y - 1})
-  fn({x: point.x, y: point.y + 1})
-}
-
-function isSameColor(data, point1, point2) {
-  var offset1 = (point1.x + point1.y * data.width) * 4
-  var offset2 = (point2.x + point2.y * data.width) * 4
-
-  for (var i = 0; i < 4; i++) {
-    if (data.data[offset1 + i] != data.data[offset2 + i]) {
-      return false
-    }
-  }
-  return true
-}
-
-tools["Flood Fill"] = function(event, cx) {
-  var imageData = cx.getImageData(0, 0, cx.canvas.width, cx.canvas.height),
-  		sample = relativePos(event, cx.canvas),
-      isPainted = new Array(imageData.width * imageData.height),
-      toPaint = [sample]
-
-  while(toPaint.length) {
-    var current = toPaint.pop(),
-        id = current.x + current.y * imageData.width
-
-    if (isPainted[id]) continue
-    else {
-      cx.fillRect(current.x, current.y, 1, 1)
-      isPainted[id] = true
-    }
-
-    forEachNeighbor(current, function(neighbor) {
-      if (neighbor.x >= 0 && neighbor.x < imageData.width &&
-          neighbor.y >= 0 && neighbor.y < imageData.height &&
-          isSameColor(imageData, sample, neighbor)) {
-        toPaint.push(neighbor)
-      }
-    })
-  }
-}
-
 var appDiv = document.querySelector('#paint-app')
 createPaint(appDiv)
 
@@ -371,9 +218,23 @@ const cx = canvas.getContext('2d')
 const statesMouse = new Map()
 let lastPosition = new Map()
 
+function getCanvasStyle() {
+  return {
+    strokeStyle: cx.strokeStyle,
+    lineWidth: cx.lineWidth,
+    globalCompositeOperation: cx.globalCompositeOperation,
+  }
+}
+
+function setCanvasStyle(actualConfig) {
+  cx.strokeStyle = actualConfig.strokeStyle
+  cx.strokeStyle = actualConfig.lineWidth
+  cx.globalCompositeOperation = actualConfig.globalCompositeOperation
+}
+
 function dealWithLine (data) {
-  const { position, strokeStyle } = data
-  const oldStrokeStyle = cx.strokeStyle
+  const { position, strokeStyle, lineWidth, globalCompositeOperation } = data
+  const actualConfig = getCanvasStyle()
 
   cx.beginPath()
   if (lastPosition.get(data.userId)) {
@@ -384,14 +245,16 @@ function dealWithLine (data) {
 
   cx.lineTo(position.x, position.y)
   cx.strokeStyle = strokeStyle
+  cx.lineWidth = lineWidth
+  cx.lineCap = 'round'
+  cx.strokeStyle = globalCompositeOperation
   cx.stroke()
-  cx.strokeStyle = oldStrokeStyle
+  setCanvasStyle(actualConfig)
   lastPosition.set(data.userId, data.position)
 }
 
 function dealWithRectangle (data) {
   const { position, width, height, fillStyle } = data
-  console.log(position, width, height)
   const oldFillStyle = cx.fillStyle
   cx.fillStyle = fillStyle
   cx.fillRect(position.x, position.y, width, height)
@@ -421,7 +284,6 @@ addEventListener('mouseup', function() {
 })
 
 function decideTool (data) {
-  console.log(data)
   switch (data.tool) {
     case 'Line':
       dealWithLine(data)
@@ -434,5 +296,6 @@ function decideTool (data) {
 
 ws.onmessage = function (event) {
   const data = JSON.parse(event.data)
+  console.log(data)
   decideTool(data)
 }
