@@ -1,4 +1,4 @@
-const ws = new WebSocket('ws://10.237.66.2:8080')
+const ws = new WebSocket('ws://localhost:8080')
 
 function createPaint(parent) {
   var canvas = elt('canvas', { width: 500, height: 300 })
@@ -228,7 +228,7 @@ function getCanvasStyle() {
 
 function setCanvasStyle(actualConfig) {
   cx.strokeStyle = actualConfig.strokeStyle
-  cx.strokeStyle = actualConfig.lineWidth
+  cx.lineWidth = actualConfig.lineWidth
   cx.globalCompositeOperation = actualConfig.globalCompositeOperation
 }
 
